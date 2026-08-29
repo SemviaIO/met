@@ -1,0 +1,11 @@
+{
+  "@context": "https://pkg.semvia.io/semvia/core/semantic-package",
+  "@type": "https://pkg.semvia.io/semvia/core/semantic-package#SemanticPackage",
+  "title": "Met Museum Open Access",
+  "description": "A semantic package over the Metropolitan Museum of Art's Open Access catalogue held in the semvia-test-data Postgres instance. Ships a small museum-object ontology, the nineteen curatorial departments as a SKOS scheme, an svdb:PostgresConnection descriptor carrying no credential, and two RML TriplesMaps that read one 54-column relation as objects and as the artists attributed to them — nothing is copied, every read is answered by the database.",
+  "version": "0.1.0",
+  "owner": "SemviaIO",
+  "baseIRI": "https://github.com/SemviaIO/met",
+  "source": "./schema",
+  "built": "./built"
+}

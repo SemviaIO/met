@@ -1,0 +1,318 @@
+# The Artists mapping — the maker columns of `public.objects` lifted into
+# subjects of their own, so an object's creator is a node with attributes rather
+# than six more literals hanging off the object.
+#
+# WHY THIS MAP IS TURTLE AND THE OBJECTS MAP IS MARKDOWN. The rest of this
+# package is authored in Markdown, on the principle that a mapping is a document
+# a human reads and argues with. That surface routes each `::` line to a minted
+# glue node by predicate IRI, and the set of predicates it routes is closed:
+# rml:reference, rml:template, rml:constant, rml:termType, rml:datatype,
+# rml:language. `rml:functionExecution` is not in it, and could not be — a
+# function execution is a *tree* of nodes with parameters and nested arguments,
+# and the `###` grammar has one line per glue node with no slot for structure.
+# Every object map below is a three-deep function tree, so this map drops to
+# Turtle and says why, rather than the package silently mapping the raw columns.
+#
+# WHY EVERY COLUMN GOES THROUGH THE SAME THREE FUNCTIONS. The artist columns
+# carry two source artefacts at once, and neither is optional to handle:
+#
+#   1. They are blank-padded to a fixed width. A birth year arrives as
+#      `"1903      "`, and an absent one as ten spaces rather than NULL — so the
+#      unprocessed column mints 31,792 artists whose birth date is whitespace.
+#   2. They are pipe-packed on the 97,567 rows crediting more than one maker,
+#      in the same field order across all six columns.
+#
+# So each object map is `nullif(string_trim(split_part(col, "|", 1)), "")`:
+# take the first credited maker's field, strip the padding, and turn what is left
+# of an empty cell into NULL. A NULL value fails the validity filter and mints no
+# triple, which is RML's own answer for an absent value — that is what keeps the
+# whitespace artists out rather than a downstream filter having to know about
+# them. All three functions are catalogue-`Pushable`, so the whole tree unparses
+# into Postgres and none of it costs a fetch.
+#
+# WHAT THE FIRST-FIELD PROJECTION COSTS. On the 184,946 single-maker
+# attributions `split_part` is the identity function and nothing is lost. On the
+# 97,567 packed ones it keeps the first credited maker and discards the rest, and
+# it hangs that maker's attributes on a subject minted from a constituent
+# identifier that — as ontology.ttl records in detail — is a fused token
+# belonging to no single maker. Both are #5719: the engine has no per-cell
+# fan-out and no positional zip, so a packed cell is one value or nothing. The
+# measured field-count alignment across all six columns is the evidence that the
+# zip is implementable against this source once the engine can express it.
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rml:  <http://w3id.org/rml/> .
+@prefix grel: <http://users.ugent.be/~bjdmeest/function/grel.ttl#> .
+@prefix svs:  <https://pkg.semvia.io/semvia/core/meta-schema#> .
+@prefix svds: <https://pkg.semvia.io/semvia/core/dataset#> .
+@prefix svf:  <https://pkg.semvia.io/semvia/rml/functions#> .
+@prefix met:  <ontology#> .
+@prefix :     <#> .
+
+<> a svs:Schema ;
+  dct:title "Met Artists Mapping"@en ;
+  dct:description "The maker columns of public.objects read a second time, keyed on constituent_id, so that an object's dct:creator resolves to an artist node carrying a name, a nationality, life dates and external identifiers. Every value is projected out of a padded, pipe-packed cell by a pushable function tree."@en ;
+  svds:imports <https://pkg.semvia.io/semvia/core/meta-schema> ;
+  svds:imports <https://pkg.semvia.io/semvia/rml/functions> ;
+  svds:imports <./ontology> ;
+.
+
+# The second TriplesMap over the same physical relation, and the reason the
+# Objects map notes that two are supported: the federation engine keys a
+# registered table on the TriplesMap's local name, not on the relation, so
+# `Objects` and `Artists` register as two tables over one Postgres table. No
+# rml:joinCondition is needed to walk between them — the Objects map mints its
+# dct:creator IRI from the same column and the same template this map's subject
+# uses, so the edge is closed by IRI equality rather than by a join the mapping
+# has to declare.
+:Artists a rml:TriplesMap ;
+  rdfs:label "Artists" ;
+  rdfs:comment "One subject per constituent identifier, carrying the first credited maker's attributes. 48,365 subjects over 282,513 attributed rows; the 202,443 rows with no constituent identifier mint nothing, because a NULL in the subject template mints no subject."@en ;
+
+  # The explicit `a rml:…` on each glue node below is not decoration. The
+  # Markdown surface emits it from the map rule's `map:outputType`; hand-authored
+  # Turtle has no such rule, and the RML core shapes check the node's type
+  # through `sh:class`, so omitting it is a validation failure rather than a
+  # shorthand. The function-execution nodes below need no such type: the FnO
+  # shapes reach them with `sh:node`, which constrains structure without
+  # requiring a declared class.
+  rml:logicalSource [
+    a rml:LogicalSource ;
+    rml:source <connection#met-source> ;
+    rml:referenceFormulation rml:SQL2008Table ;
+    rml:iterator "public.objects"
+  ] ;
+
+  # The one artist column that is never padded and never packed, which is why it
+  # is the only one the subject template can use unprocessed — and why it is also
+  # the one whose packed-row values are fused rather than delimited.
+  rml:subjectMap [
+    a rml:SubjectMap ;
+    rml:template "https://data.metmuseum.org/artist/{constituent_id}" ;
+    rml:class <ontology#Artist>
+  ] ;
+
+  # The display name — "Rembrandt (Rembrandt van Rijn)", not a normalised one.
+  rml:predicateObjectMap [
+    a rml:PredicateObjectMap ;
+    rml:predicate dct:title ;
+    rml:objectMap [
+      a rml:ObjectMap ;
+      rml:functionExecution [
+        rml:function svf:nullif ;
+        rml:input [
+          rml:parameter svf:nullif_value ;
+          rml:inputValueMap [
+            rml:functionExecution [
+              rml:function grel:string_trim ;
+              rml:input [
+                rml:parameter grel:valueParameter ;
+                rml:inputValueMap [
+                  rml:functionExecution [
+                    rml:function svf:split_part ;
+                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_display_name" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                  ] ;
+                  rml:return svf:string_output
+                ]
+              ]
+            ] ;
+            rml:return grel:stringOut
+          ]
+        ] ;
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+      ] ;
+      rml:return svf:any_output
+    ]
+  ] ;
+
+  # Free text, and sometimes compound: "Italian, Florentine" is one value.
+  rml:predicateObjectMap [
+    a rml:PredicateObjectMap ;
+    rml:predicate met:nationality ;
+    rml:objectMap [
+      a rml:ObjectMap ;
+      rml:functionExecution [
+        rml:function svf:nullif ;
+        rml:input [
+          rml:parameter svf:nullif_value ;
+          rml:inputValueMap [
+            rml:functionExecution [
+              rml:function grel:string_trim ;
+              rml:input [
+                rml:parameter grel:valueParameter ;
+                rml:inputValueMap [
+                  rml:functionExecution [
+                    rml:function svf:split_part ;
+                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_nationality" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                  ] ;
+                  rml:return svf:string_output
+                ]
+              ]
+            ] ;
+            rml:return grel:stringOut
+          ]
+        ] ;
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+      ] ;
+      rml:return svf:any_output
+    ]
+  ] ;
+
+  # Deliberately no rml:datatype — see the note in ontology.ttl on why an
+  # xsd:integer stamp here would mint ill-typed literals rather than fail (#5720).
+  rml:predicateObjectMap [
+    a rml:PredicateObjectMap ;
+    rml:predicate met:birthDate ;
+    rml:objectMap [
+      a rml:ObjectMap ;
+      rml:functionExecution [
+        rml:function svf:nullif ;
+        rml:input [
+          rml:parameter svf:nullif_value ;
+          rml:inputValueMap [
+            rml:functionExecution [
+              rml:function grel:string_trim ;
+              rml:input [
+                rml:parameter grel:valueParameter ;
+                rml:inputValueMap [
+                  rml:functionExecution [
+                    rml:function svf:split_part ;
+                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_begin_date" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                  ] ;
+                  rml:return svf:string_output
+                ]
+              ]
+            ] ;
+            rml:return grel:stringOut
+          ]
+        ] ;
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+      ] ;
+      rml:return svf:any_output
+    ]
+  ] ;
+
+  # Zero on a living artist or an active firm; the source convention is kept.
+  rml:predicateObjectMap [
+    a rml:PredicateObjectMap ;
+    rml:predicate met:deathDate ;
+    rml:objectMap [
+      a rml:ObjectMap ;
+      rml:functionExecution [
+        rml:function svf:nullif ;
+        rml:input [
+          rml:parameter svf:nullif_value ;
+          rml:inputValueMap [
+            rml:functionExecution [
+              rml:function grel:string_trim ;
+              rml:input [
+                rml:parameter grel:valueParameter ;
+                rml:inputValueMap [
+                  rml:functionExecution [
+                    rml:function svf:split_part ;
+                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_end_date" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                  ] ;
+                  rml:return svf:string_output
+                ]
+              ]
+            ] ;
+            rml:return grel:stringOut
+          ]
+        ] ;
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+      ] ;
+      rml:return svf:any_output
+    ]
+  ] ;
+
+  # Two mappings, one predicate. Each is an outbound identity claim the Met
+  # publishes, stored so a consumer can follow it deliberately. Nothing here
+  # follows it: owl:sameAs is not in the production rule set, so the engine
+  # never rewrites a query across one, and a pattern that tries to traverse it
+  # returns no rows and no error.
+  #
+  # rml:termType rml:IRI is what makes the value a node rather than a string.
+  # It is also why the nullif matters more here than on the literal maps: an
+  # empty string is a valid literal but not a valid IRI, and the padded-empty
+  # cells would otherwise reach term minting as one.
+  rml:predicateObjectMap [
+    a rml:PredicateObjectMap ;
+    rml:predicate owl:sameAs ;
+    rml:objectMap [
+      a rml:ObjectMap ;
+      rml:functionExecution [
+        rml:function svf:nullif ;
+        rml:input [
+          rml:parameter svf:nullif_value ;
+          rml:inputValueMap [
+            rml:functionExecution [
+              rml:function grel:string_trim ;
+              rml:input [
+                rml:parameter grel:valueParameter ;
+                rml:inputValueMap [
+                  rml:functionExecution [
+                    rml:function svf:split_part ;
+                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_wikidata_url" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                  ] ;
+                  rml:return svf:string_output
+                ]
+              ]
+            ] ;
+            rml:return grel:stringOut
+          ]
+        ] ;
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+      ] ;
+      rml:return svf:any_output ;
+      rml:termType rml:IRI
+    ]
+  ] ;
+
+  # The Getty ULAN record, same treatment.
+  rml:predicateObjectMap [
+    a rml:PredicateObjectMap ;
+    rml:predicate owl:sameAs ;
+    rml:objectMap [
+      a rml:ObjectMap ;
+      rml:functionExecution [
+        rml:function svf:nullif ;
+        rml:input [
+          rml:parameter svf:nullif_value ;
+          rml:inputValueMap [
+            rml:functionExecution [
+              rml:function grel:string_trim ;
+              rml:input [
+                rml:parameter grel:valueParameter ;
+                rml:inputValueMap [
+                  rml:functionExecution [
+                    rml:function svf:split_part ;
+                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_ulan_url" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                  ] ;
+                  rml:return svf:string_output
+                ]
+              ]
+            ] ;
+            rml:return grel:stringOut
+          ]
+        ] ;
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+      ] ;
+      rml:return svf:any_output ;
+      rml:termType rml:IRI
+    ]
+  ] ;
+.

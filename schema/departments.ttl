@@ -1,0 +1,201 @@
+# The nineteen curatorial departments of the Metropolitan Museum, as a SKOS
+# scheme — the only file in this package that ships data rather than a way to
+# read it.
+#
+# WHY THESE CONCEPTS DO NOT LIVE IN THIS PACKAGE'S NAMESPACE. Every other term
+# here is `<ontology#…>`, because this package coins it. These nineteen are not
+# coined here: they are the IRIs the Objects mapping mints from the `department`
+# column, and they have to be character-for-character what that template
+# produces or the department edge points at a subject nothing describes. A join
+# through a department would then return no rows and no error — the worst
+# failure shape this package can have. Their namespace is the source's because
+# their identity is the source's.
+#
+# WHY THE PERCENT-ENCODING IS LOAD-BEARING. Template minting runs the cell
+# through `iri_safe_encode`, which leaves RFC 3987 `iunreserved` alone and
+# percent-encodes everything else as UPPERCASE hex. A space is `%20` and a comma
+# is `%2C` — `%2c` is a different IRI and would silently break the one department
+# whose name contains a comma. That encoding is also a strict left inverse, which
+# is what lets a ground department IRI in a query push down to a SQL equality on
+# the raw column instead of fetching the table and filtering in memory.
+#
+# WHY PLAIN LITERALS AND NOT `@en`. The labels are proper nouns — the names of
+# real organisational units, not English renderings of a concept that has other
+# renderings. House rule: proper nouns are `xsd:string`.
+#
+# THE COUNTS ARE A DRIFT DETECTOR. Each `skos:scopeNote` carries the row count
+# measured against `public.objects` on 2026-08-29, and the nineteen sum to
+# exactly 484,956 — the table's full row count, with no nulls and no twentieth
+# value. If that stops holding, the source has changed shape and the corpus
+# oracles are stale.
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix svs:  <https://pkg.semvia.io/semvia/core/meta-schema#> .
+@prefix svds: <https://pkg.semvia.io/semvia/core/dataset#> .
+@prefix met:  <ontology#> .
+@prefix dept: <#> .
+
+<> a svs:Schema ;
+  dct:title "Met Museum Departments"@en ;
+  dct:description "The nineteen curatorial departments of the Metropolitan Museum as a SKOS concept scheme. The concept IRIs are the ones the Objects mapping mints from the department column, so this file is what gives a department edge something to resolve to."@en ;
+  # Absolute IRIs for what this package does not own; a relative `<../…>` would
+  # resolve against this package's baseIRI and land on an IRI nothing publishes.
+  svds:imports <https://pkg.semvia.io/semvia/core/meta-schema> ;
+  svds:imports <./ontology> ;
+  sh:declare [
+    a sh:PrefixDeclaration ;
+    sh:prefix "dept" ;
+    sh:namespace dept:
+  ] ;
+.
+
+################################################################
+# The scheme
+################################################################
+
+# The scheme is this package's own construct, so it keeps this package's
+# namespace even though every concept in it does not.
+dept:scheme a skos:ConceptScheme ;
+  rdfs:label "Met Museum curatorial departments"@en ;
+  rdfs:comment "Closed at nineteen. The department column is non-null on every row and takes no other value."@en ;
+.
+
+################################################################
+# The concepts
+################################################################
+
+<https://data.metmuseum.org/department/Ancient%20Near%20Eastern%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Ancient Near Eastern Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "6,223 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Arms%20and%20Armor>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Arms and Armor" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "13,623 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Arts%20of%20Africa%2C%20Oceania%2C%20and%20the%20Americas>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Arts of Africa, Oceania, and the Americas" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "12,367 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Asian%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Asian Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "37,000 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Costume%20Institute>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Costume Institute" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "31,652 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Drawings%20and%20Prints>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Drawings and Prints" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "172,630 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Egyptian%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Egyptian Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "27,969 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/European%20Paintings>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "European Paintings" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "2,626 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/European%20Sculpture%20and%20Decorative%20Arts>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "European Sculpture and Decorative Arts" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "43,051 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Greek%20and%20Roman%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Greek and Roman Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "33,726 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Islamic%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Islamic Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "15,573 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Medieval%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Medieval Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "7,142 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Modern%20and%20Contemporary%20Art>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Modern and Contemporary Art" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "14,696 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Musical%20Instruments>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Musical Instruments" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "5,227 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Photographs>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Photographs" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "37,459 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/Robert%20Lehman%20Collection>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "Robert Lehman Collection" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "2,586 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/The%20American%20Wing>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "The American Wing" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "18,532 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/The%20Cloisters>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "The Cloisters" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "2,340 rows."@en ;
+.
+
+<https://data.metmuseum.org/department/The%20Libraries>
+  a skos:Concept, met:Department ;
+  skos:prefLabel "The Libraries" ;
+  skos:inScheme dept:scheme ;
+  skos:scopeNote "534 rows."@en ;
+.

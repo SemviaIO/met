@@ -1,0 +1,36 @@
+Data source attribution
+=======================
+
+This package contains no catalogue data. It contains a mapping: an ontology, a
+SKOS scheme of nineteen department names, a connection descriptor, and two RML
+TriplesMaps that describe how to read a database. Every title, artist name and
+accession fact a consumer sees is fetched from that database at query time and
+is never copied into this repository or into anything this repository
+publishes.
+
+The data those mappings read is the Metropolitan Museum of Art's Open Access
+catalogue — the CSV export of the Met's collection records.
+
+  Source:         The Metropolitan Museum of Art Open Access
+                  https://github.com/metmuseum/openaccess
+  Terms of use:   https://www.metmuseum.org/information/terms-and-conditions/open-access
+
+The Met releases the Open Access catalogue data under CC0 1.0 Universal. That is
+the Met's grant over their data, not ours, and it is reproduced here as
+attribution rather than as a representation — a consumer relying on it should
+read the Met's terms directly, since the Met may change them. The Met's grant
+covers the catalogue metadata; it does not cover the images, which carry their
+own terms, and this package maps no image.
+
+"The Metropolitan Museum of Art" and "The Met" refer to the museum. This package
+is not affiliated with, endorsed by, or produced in cooperation with the
+Metropolitan Museum of Art.
+
+The IRIs under https://data.metmuseum.org/ that this package mints are minted by
+this package, in a namespace the Met controls, so that an object or a department
+has one identity across every consumer that installs this. The Met does not
+serve them and does not warrant them.
+
+Everything in this repository that Semvia authored — the ontology, the
+department scheme, the connection descriptor, the mapping documents, and this
+notice — is dedicated to the public domain under CC0 1.0 Universal. See LICENSE.

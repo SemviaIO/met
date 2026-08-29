@@ -1,0 +1,400 @@
+# The Met Museum object ontology — the knowledge model the RML mappings in this
+# package project the `objects` relation onto.
+#
+# The source is one denormalized relation: 484,956 rows, 54 columns, every one of
+# them `text`. A curator does not see a wide table; they see an OBJECT (the
+# physical artwork), an ARTIST (the person or workshop that made it — the column
+# family calls it a `constituent`, nobody outside the table does), and a
+# DEPARTMENT (the curatorial section that owns the object). Those three classes
+# are what this file declares, and the mapping's whole job is the lift onto them.
+# A model that named `met:artist_display_bio` would only be SQL in a different
+# syntax, and would prove nothing about the lift.
+#
+# WHY CIDOC-CRM IS AN `rdfs:seeAlso` AND NOT A STRUCTURAL ALIGNMENT. CIDOC-CRM is
+# the real standard here and deserves to be named honestly rather than either
+# forced or ignored. CRM is event-centric: a `crm:E22_Man-Made_Object` is produced
+# by a `crm:E12_Production` that has its own `crm:E52_Time-Span` and reaches an
+# actor through `crm:P14_carried_out_by`. This relation has no production-event
+# row, no actor-role row, and no time-span row — adopting that shape means minting
+# blank event nodes the source never asserted, which is a worse lie than a clean
+# local term. So the CRM anchors ride as `rdfs:seeAlso`, which entails nothing,
+# and the properties stay flat and local: a creation-date range directly on the
+# object rather than a time-span node one hop away. Dublin Core and `owl:sameAs`
+# are used where the fit is exact — a title is a title, and an external Wikidata
+# or ULAN URL asserting identity is precisely what `owl:sameAs` means.
+#
+# House modelling rules this file follows (monorepo AGENTS.md, "Inference Layer"):
+#   - predicates are bare `rdf:Property` with label + comment, and carry no
+#     `rdfs:domain` / `rdfs:range`. Those are live typing declarations under
+#     rdfs2/rdfs3, and a range paired with an `sh:class` on the same path makes
+#     that constraint unfailable.
+#   - instance constraints live in `sh:property` blocks on the `svs:ClassShape`.
+#   - no `sh:minCount` on a mapped property. These shapes document a virtual
+#     graph over a source we do not control, and that source is full of nulls —
+#     `constituent_id` is absent on 202,443 of 484,956 rows and `gallery_number`
+#     on 435,415. A shape is not a gate the source can satisfy.
+
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix svs:  <https://pkg.semvia.io/semvia/core/meta-schema#> .
+@prefix svds: <https://pkg.semvia.io/semvia/core/dataset#> .
+@prefix met:  <#> .
+
+# CIDOC Conceptual Reference Model, the ISO 21127 museum-documentation standard.
+# Named here, not imported: see the alignment block at the foot of this file.
+@prefix crm:  <http://www.cidoc-crm.org/cidoc-crm/> .
+
+################################################################
+# Schema metadata
+################################################################
+
+<> a svs:Schema ;
+  dct:title "Met Museum Object Ontology"@en ;
+  dct:description "The classes and predicates this package's RML mappings project the Metropolitan Museum of Art Open Access catalogue onto. Three classes — an object per catalogued work, an artist per recorded constituent, and a department per curatorial section — lifted from one wide relation that names none of them."@en ;
+  # Absolute, not the `<../core/meta-schema>` spelling the in-monorepo schemas
+  # use: that one resolves against the monorepo layout, and from this package's
+  # baseIRI it would land on an IRI nothing publishes.
+  svds:imports <https://pkg.semvia.io/semvia/core/meta-schema> ;
+  sh:declare [
+    a sh:PrefixDeclaration ;
+    sh:prefix "met" ;
+    sh:namespace met:
+  ] ;
+.
+
+################################################################
+# Object predicates
+################################################################
+
+met:objectName a rdf:Property ;
+  rdfs:label "object name"@en ;
+  rdfs:comment "The Met's own descriptive name for the kind of thing this is — \"Vase\", \"Photograph\", \"Dress\". Distinct from dct:title, which is the work's title; an untitled photograph has an object name and no meaningful title."@en .
+
+met:classification a rdf:Property ;
+  rdfs:label "classification"@en ;
+  rdfs:comment "The Met's collection-management classification, e.g. \"Prints\" or \"Ceramics\". A single literal, not a concept: the column holds 1,244 distinct cell values because a cell may pack several base terms with a pipe (\"Prints|Ephemera\"), so the distinct-cell count is not a term count and there is no enumerable scheme to mint concepts from. Reading it as a controlled vocabulary is what makes a naive equality filter wrong — see the package README."@en .
+
+met:culture a rdf:Property ;
+  rdfs:label "culture"@en ;
+  rdfs:comment "The culture or people the work is attributed to, e.g. \"Japan\" or \"American, New York\". Open free text — 7,313 distinct values with no closed scheme behind them, so it stays a literal."@en .
+
+met:medium a rdf:Property ;
+  rdfs:label "medium"@en ;
+  rdfs:comment "The materials and technique, as the Met writes them for a label: \"Oil on canvas\", \"Silver, partly gilt, gold, ...\". 65,908 distinct values — prose, not a vocabulary."@en .
+
+met:country a rdf:Property ;
+  rdfs:label "country"@en ;
+  rdfs:comment "The modern country the work is geographically attributed to. Recorded on 76,007 of 484,956 rows; absent everywhere else, which is why no shape requires it."@en .
+
+met:isHighlight a rdf:Property ;
+  rdfs:label "is highlight"@en ;
+  rdfs:comment "Whether the Met flags this object as a collection highlight. The value is the source's own literal token — \"True\" or \"False\" as an xsd:string, NOT an xsd:boolean. Stamping it xsd:boolean would mint a term whose lexical form is outside the datatype's lexical space (\"True\" is not \"true\"), and typed-literal minting does not validate the lexical form (SemviaIO/SemviaIO#5720), so the malformed literal would be created silently rather than refused. A query asks for the string it is."@en .
+
+met:galleryNumber a rdf:Property ;
+  rdfs:label "gallery number"@en ;
+  rdfs:comment "The gallery the object is currently on view in. Present on 49,541 rows and absent on 435,415 — absence is the signal that the object is in storage, so every query over it belongs under OPTIONAL and reads unbound as \"not on view\"."@en .
+
+met:creationDateEarliest a rdf:Property ;
+  rdfs:label "creation date, earliest"@en ;
+  rdfs:comment "The earliest year of the work's creation range, as an xsd:integer. Negative for BCE — \"-332\" is a faithful integer literal for 332 BCE. The underlying column is `text` like every other, so the datatype is a minting decision this ontology makes, not one the source carries; the consequence is that a numeric comparison on this path cannot be delegated to SQL and falls to the residual net."@en .
+
+met:creationDateLatest a rdf:Property ;
+  rdfs:label "creation date, latest"@en ;
+  rdfs:comment "The latest year of the work's creation range, as an xsd:integer. Equal to met:creationDateEarliest for a work dated to a single year; the pair is a closed range, not a point."@en .
+
+met:department a rdf:Property ;
+  rdfs:label "department"@en ;
+  rdfs:comment "The curatorial department that owns the object, as a met:Department concept IRI rather than a literal. This is the one column in the relation with a genuinely closed vocabulary behind it — exactly 19 values across all 484,956 rows — so it is the one that earns a concept."@en .
+
+met:tagsRaw a rdf:Property ;
+  rdfs:label "tags (raw)"@en ;
+  rdfs:comment "The Met's subject tags for the object, verbatim, as ONE pipe-packed literal: \"Birds|Flowers|Landscapes\". The name says `Raw` because that is the honest claim — this is a packed cell, not a set of values, and no query should read it as one. The Met publishes a Getty AAT and a Wikidata IRI per tag, positionally aligned in two sibling columns, and those are the links a consumer actually wants; reaching them needs a per-cell fan-out and a three-way positional zip, neither of which exists in the RML subset this engine admits (SemviaIO/SemviaIO#5719). Until it does, this predicate carries the packed string and claims nothing more."@en .
+
+################################################################
+# Artist predicates
+################################################################
+
+met:nationality a rdf:Property ;
+  rdfs:label "nationality"@en ;
+  rdfs:comment "The artist's nationality as the Met records it, e.g. \"American\" or \"Italian, Florentine\". Pipe-packed on rows carrying more than one credited maker, in which case the value is the packed string rather than one nationality (SemviaIO/SemviaIO#5719)."@en .
+
+# Named "date" rather than "year" because the column is not a year column. Of
+# the 237,052 rows carrying a begin date, 235,153 hold a bare year, 429 hold a
+# negative year for BCE, and 1,899 hold a full ISO date such as "1895-01-21".
+met:birthDate a rdf:Property ;
+  rdfs:label "birth date"@en ;
+  rdfs:comment "The artist's birth date as the Met records it — a bare year on almost every row, an ISO date on 1,899 of them, negative for BCE. Kept xsd:string rather than xsd:integer; see the note on datatype stamping below."@en .
+
+met:deathDate a rdf:Property ;
+  rdfs:label "death date"@en ;
+  rdfs:comment "The artist's death date, or the closing year of a firm or workshop. Zero on a living artist or an active firm, which is the source's convention and is preserved rather than repaired. Kept xsd:string for the same reason as met:birthDate."@en .
+
+################################################################
+# Classes
+################################################################
+
+met:Object a svs:ClassShape ;
+  rdfs:label "Object"@en ;
+  rdfs:comment "A catalogued work in the Metropolitan Museum of Art's collection — one row of the Open Access relation. Spans the entire catalogue, from paintings to trade cards to costume, because that is exactly the extent of the relation this class is mapped from."@en ;
+  rdfs:seeAlso crm:E22_Man-Made_Object ;
+
+  sh:property [
+    sh:path dct:title ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The work's title."@en
+  ] ;
+
+  sh:property [
+    sh:path met:objectName ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The Met's descriptive name for the kind of object."@en
+  ] ;
+
+  sh:property [
+    sh:path met:classification ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The collection-management classification, as one possibly-packed literal."@en
+  ] ;
+
+  sh:property [
+    sh:path met:culture ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The culture the work is attributed to."@en
+  ] ;
+
+  sh:property [
+    sh:path met:medium ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The materials and technique."@en
+  ] ;
+
+  sh:property [
+    sh:path met:country ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The modern country of geographic attribution."@en
+  ] ;
+
+  sh:property [
+    sh:path met:isHighlight ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "\"True\" or \"False\" — the source's own token, deliberately not an xsd:boolean."@en
+  ] ;
+
+  sh:property [
+    sh:path met:galleryNumber ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The gallery the object is on view in; unbound means in storage."@en
+  ] ;
+
+  sh:property [
+    sh:path met:creationDateEarliest ;
+    sh:datatype xsd:integer ;
+    sh:maxCount 1 ;
+    sh:description "The earliest year of the creation range; negative for BCE."@en
+  ] ;
+
+  sh:property [
+    sh:path met:creationDateLatest ;
+    sh:datatype xsd:integer ;
+    sh:maxCount 1 ;
+    sh:description "The latest year of the creation range; negative for BCE."@en
+  ] ;
+
+  sh:property [
+    sh:path met:tagsRaw ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The subject tags as one pipe-packed literal, not as a set."@en
+  ] ;
+
+  sh:property [
+    sh:path met:department ;
+    sh:class met:Department ;
+    sh:maxCount 1 ;
+    sh:description "The curatorial department that owns the object."@en
+  ] ;
+
+  # No sh:class here, and the reason is the whole point of the Artist map: an
+  # object's creator IRI is minted from `constituent_id` on the same row, so the
+  # subject it names is a met:Artist by construction. Declaring sh:class met:Artist
+  # would be true and unfailable, which is a constraint that documents nothing.
+  # sh:nodeKind is the part a reader can be wrong about.
+  sh:property [
+    sh:path dct:creator ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+    sh:description "The primary recorded maker. At most one: the source packs co-attributed makers into the name column but never into the identifier column, so only the first is reachable (SemviaIO/SemviaIO#5719)."@en
+  ] ;
+
+  sh:property [
+    sh:path owl:sameAs ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+    sh:description "The object's Wikidata entity, where the Met records one. An outbound external identifier — see the note on owl:sameAs below."@en
+  ] ;
+.
+
+# WHAT A constituent_id ACTUALLY IDENTIFIES, MEASURED.
+#
+# The column looks like an artist key and is one on only part of the table. Of
+# its 48,365 distinct values, 9,361 appear exclusively on rows crediting a single
+# maker; the other 39,004 appear exclusively on rows whose artist columns are
+# pipe-packed with two or more makers. The two sets are disjoint — not one of the
+# 39,004 is ever seen on a single-maker row — which is the signature of a loader
+# that joined several real constituent identifiers into one token by dropping the
+# delimiter the other artist columns kept. `1070527632` credits "Joos de
+# Bosscher|Abraham de Bruyn"; the same two makers in the other order are
+# `7632610705`.
+#
+# So a met:Artist minted from a packed row denotes the *first credited maker of
+# the rows carrying that token*, and its IRI is not that maker's identifier at
+# the Met. 184,946 objects are attributed through a real identifier and 97,567
+# through a fused one, and no query can tell the two apart. This is stated here
+# rather than repaired because the alternative — restricting the mapping to
+# single-maker rows — would drop the creator edge from 97,567 objects silently.
+#
+# One thing the measurement does establish: on all 97,567 packed rows, the
+# display name, nationality, begin date, end date, ULAN URL and Wikidata URL all
+# carry the same field count. The packing is a coherent positional tuple, so the
+# per-cell fan-out and positional zip that #5719 describes is implementable
+# against this source. The engine cannot express it yet, which is why the mapping
+# projects field one and says so.
+
+met:Artist a svs:ClassShape ;
+  rdfs:label "Artist"@en ;
+  rdfs:comment "A maker recorded against at least one object — a person, a workshop, a firm, or the Met's own \"Unknown\". Keyed on the source's constituent identifier, which is the entity smeared across every object row it made; lifting it into a subject of its own is what turns a wide table into a graph. An artist recorded on no object does not exist here, because the relation carries no constituent the catalogue does not credit."@en ;
+  rdfs:seeAlso crm:E39_Actor ;
+
+  # No sh:maxCount 1 on the label, and this is measured rather than cautious:
+  # 6,281 of the 48,365 distinct constituent identifiers carry more than one
+  # distinct display name across their rows. That is drift in the source, not a
+  # packing artefact — the identifier column is never packed. A maxCount here
+  # would fail on an eighth of the artists and would be documenting a repair
+  # nobody has made.
+  sh:property [
+    sh:path dct:title ;
+    sh:datatype xsd:string ;
+    sh:description "The artist's display name as the Met writes it, e.g. \"Rembrandt (Rembrandt van Rijn)\"."@en
+  ] ;
+
+  sh:property [
+    sh:path met:nationality ;
+    sh:datatype xsd:string ;
+    sh:description "The artist's nationality as recorded."@en
+  ] ;
+
+  # WHY THESE ARE STRINGS AND THE OBJECT DATES ARE INTEGERS. object_begin_date
+  # and object_end_date are integer-clean on all 484,956 rows, so they carry an
+  # xsd:integer stamp. The artist columns are not: after the mapping trims the
+  # source's blank padding and takes the first packed field, 1,899 begin values
+  # and 1,729 end values are still full ISO dates, and 429 more are negative
+  # years. No total projection from that to an integer exists in the closed
+  # function catalogue — a leading-year split on "-" succeeds on the ISO dates
+  # and fails on exactly the BCE rows.
+  #
+  # Stamping xsd:integer anyway would not fail. It would mint
+  # "1895-01-21"^^xsd:integer, because term_from_lexical builds a typed literal
+  # without validating the lexical form against the datatype
+  # (SemviaIO/SemviaIO#5720) — a term that compares as neither a number nor a
+  # date and that no query can detect. A plain string is the honest term, and it
+  # still orders correctly for the four-digit CE years that are 99% of the data.
+  sh:property [
+    sh:path met:birthDate ;
+    sh:datatype xsd:string ;
+    sh:description "The birth date, or a firm's opening year."@en
+  ] ;
+
+  sh:property [
+    sh:path met:deathDate ;
+    sh:datatype xsd:string ;
+    sh:description "The death date, or a firm's closing year; zero while still active."@en
+  ] ;
+
+  # Two mappings feed this predicate — the Wikidata entity and the Getty ULAN
+  # record — but that is a count of mappings, not of values. A constituent
+  # identifier reaches up to ten distinct Wikidata IRIs across its rows, for the
+  # same source drift that keeps a maxCount off the label. So no maxCount here
+  # either; the shape says the values are IRIs and stops there.
+  sh:property [
+    sh:path owl:sameAs ;
+    sh:nodeKind sh:IRI ;
+    sh:description "The artist's Wikidata entity and Getty ULAN record, where the Met records them."@en
+  ] ;
+.
+
+met:Department a svs:ClassShape ;
+  rdfs:label "Department"@en ;
+  rdfs:comment "A curatorial department of the Metropolitan Museum of Art. Nineteen of them, closed and stable, asserted once as reference data in `departments.ttl` rather than derived from the relation — the mapping mints the same IRIs from the source cell, so the two meet on identity without either deriving the other. Also a skos:Concept: the departments form a flat scheme, and a consumer that speaks SKOS should be able to read it as one."@en ;
+  rdfs:seeAlso skos:Concept ;
+
+  # A plain literal, not a language-tagged one. These are proper nouns — the Met's
+  # own names for its own sections — and a proper noun is not a translation of
+  # anything, so it carries no language tag.
+  sh:property [
+    sh:path skos:prefLabel ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "The department's name, exactly as the source cell spells it."@en
+  ] ;
+
+  sh:property [
+    sh:path skos:inScheme ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+    sh:description "The department scheme this concept belongs to."@en
+  ] ;
+.
+
+################################################################
+# On owl:sameAs
+################################################################
+#
+# Three predicates in this package emit an `owl:sameAs`: an object's Wikidata
+# entity, and an artist's Wikidata entity and Getty ULAN record. All three are
+# OUTBOUND EXTERNAL IDENTIFIERS — a value projected out of the graph for a
+# consumer to follow elsewhere, not an edge this engine walks.
+#
+# `owl:sameAs` is stored and never followed. It is not in the production rule set
+# and nothing rewrites a query across it, so a pattern that tries to reach an
+# object's facts THROUGH its Wikidata IRI returns no rows and no error, which is
+# the worst failure shape there is: silence that reads as absence. Every query in
+# this package's demo corpus that touches these predicates projects the value and
+# stops.
+#
+# The corollary is that cross-source identity in this stack is an IRI-template
+# decision made inside the RML — two mappings that mint the same subject IRI ARE
+# talking about the same thing — and never an inference question asked afterwards.
+#
+################################################################
+# Alignment
+################################################################
+#
+# `rdfs:seeAlso` on the three classes above, and deliberately nothing stronger.
+#
+# `owl:equivalentClass` is a production-default lattice edge walked in both
+# directions: one asserted edge puts a third-party class into our lattice and
+# every subsumption read starts answering over their data. That is the right
+# trade when the extents genuinely coincide. Here they do not — `met:Object` is
+# every row of a catalogue relation, including archival ephemera and specimen
+# cards that CRM would type as something other than a man-made object, and
+# `met:Artist` is a constituent record, which CRM reaches only through a role in
+# a production event this source does not carry. `rdfs:seeAlso` entails nothing,
+# which is exactly the claim being made: here is the standard term a reader
+# should look at, and no, we are not asserting they are the same set.
+#
+# Because nothing is entailed, the CRM IRIs need no local `a rdfs:Class`
+# re-declaration — an `rdfs:seeAlso` to an untyped term is well-formed, where an
+# `owl:equivalentClass` to one would fail the meta-schema.
