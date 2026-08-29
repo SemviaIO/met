@@ -39,6 +39,21 @@
 # fan-out and no positional zip, so a packed cell is one value or nothing. The
 # measured field-count alignment across all six columns is the evidence that the
 # zip is implementable against this source once the engine can express it.
+#
+# WHAT THE ENGINE CANNOT YET MINT FROM THIS MAP. Every object map here is an
+# `rml:functionExecution`, and the two `owl:sameAs` maps declare
+# `rml:termType rml:IRI`. That combination reaches the marshaller with nothing to
+# mint: `TermMap::produce` has no arm for a computed value, so an FNML object map
+# asked for an IRI leaves its object unbound on every row and the residual
+# materializer rejects the solution by name. The literal-valued maps above are
+# unaffected — a computed cell is wrapped as a literal directly. So today an
+# artist's Wikidata and Getty ULAN identities are declared, delegate correct SQL,
+# and answer nothing; the sibling Objects map's `owl:sameAs`, a plain
+# `rml:reference`, answers. That is
+# [SemviaIO/SemviaIO#5754](https://github.com/SemviaIO/SemviaIO/issues/5754), and
+# it is an engine gap rather than an authoring one: referencing the raw column
+# instead would keep the predicate by minting IRIs out of padded, packed and
+# "(not assigned)" cells, which is a worse answer than none.
 
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix dct:  <http://purl.org/dc/terms/> .
@@ -280,7 +295,17 @@
     ]
   ] ;
 
-  # The Getty ULAN record, same treatment.
+  # The Getty ULAN record, same treatment plus one sentinel the Wikidata column
+  # does not carry. `artist_ulan_url` spells "no authority record" as the literal
+  # string "(not assigned)" — 29,504 rows in field one, 40,493 somewhere in the
+  # packed cell — and the Wikidata column spells it nowhere (0 rows), which is why
+  # only this map carries the outer nullif and the one above does not.
+  #
+  # A blank cell and a sentinel cell are the same claim, so they get the same
+  # treatment: no term. "(not assigned)" is not a legal IRI — no scheme, and a
+  # space — so leaving it unguarded would ask rml:termType rml:IRI to mint from a
+  # string that cannot be one, on 29,504 rows. Knowing a source's null spellings is
+  # this document's job, not the engine's.
   rml:predicateObjectMap [
     a rml:PredicateObjectMap ;
     rml:predicate owl:sameAs ;
@@ -292,24 +317,34 @@
           rml:parameter svf:nullif_value ;
           rml:inputValueMap [
             rml:functionExecution [
-              rml:function grel:string_trim ;
+              rml:function svf:nullif ;
               rml:input [
-                rml:parameter grel:valueParameter ;
+                rml:parameter svf:nullif_value ;
                 rml:inputValueMap [
                   rml:functionExecution [
-                    rml:function svf:split_part ;
-                    rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_ulan_url" ] ] ;
-                    rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
-                    rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                    rml:function grel:string_trim ;
+                    rml:input [
+                      rml:parameter grel:valueParameter ;
+                      rml:inputValueMap [
+                        rml:functionExecution [
+                          rml:function svf:split_part ;
+                          rml:input [ rml:parameter svf:split_part_value ;     rml:inputValueMap [ rml:reference "artist_ulan_url" ] ] ;
+                          rml:input [ rml:parameter svf:split_part_delimiter ; rml:inputValueMap [ rml:constant "|" ] ] ;
+                          rml:input [ rml:parameter svf:split_part_position ;  rml:inputValueMap [ rml:constant "1" ] ]
+                        ] ;
+                        rml:return svf:string_output
+                      ]
+                    ]
                   ] ;
-                  rml:return svf:string_output
+                  rml:return grel:stringOut
                 ]
-              ]
+              ] ;
+              rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
             ] ;
-            rml:return grel:stringOut
+            rml:return svf:any_output
           ]
         ] ;
-        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "" ] ]
+        rml:input [ rml:parameter svf:nullif_sentinel ; rml:inputValueMap [ rml:constant "(not assigned)" ] ]
       ] ;
       rml:return svf:any_output ;
       rml:termType rml:IRI
