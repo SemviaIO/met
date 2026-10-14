@@ -12,21 +12,31 @@ Nothing is copied and nothing is materialized.
 
 ## Install
 
-```json
-{
-  "requires": {
-    "https://github.com/SemviaIO/met": "SemviaIO/met#v0.1.0"
-  }
-}
+Paste `https://pkg.semvia.io/semvia/met/@0.2.0` into Folio's dependency
+drawer, or from a workspace:
+
+```sh
+sem add https://pkg.semvia.io/semvia/met/@0.2.0
 ```
 
-Any git ref works in place of the tag — a branch or a commit SHA, in the
-`owner/repo#ref` form.
+Either records the requirement in `sem.json`:
+
+```json
+{
+  "requires": [
+    {
+      "@type": "https://pkg.semvia.io/semvia/core/semantic-package#PackageRequirement",
+      "package": "https://pkg.semvia.io/semvia/met/",
+      "versionMinimum": "0.2.0"
+    }
+  ]
+}
+```
 
 The connection descriptor names the database but carries **no password**. The
 installer binds it out of band: `svdb:password` is a secret-marked field, and the
 binding is keyed to the descriptor's own subject IRI,
-`https://github.com/SemviaIO/met/schema/connection#met-source`, so the credential
+`https://pkg.semvia.io/semvia/met/connection#met-source`, so the credential
 is released only for the destination you consented to. No credential appears
 anywhere in this repository, and none ever will.
 
